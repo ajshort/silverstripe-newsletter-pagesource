@@ -12,7 +12,7 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		}
 
 		$page     = $newsletter->SourcePage();
-		$response = Director::test($page->Link());
+		$response = Director::test($page->RelativeLink());
 		$body     = $this->emogrify($response->getBody());
 		$body     = HTTP::absoluteURLs($body);
 
