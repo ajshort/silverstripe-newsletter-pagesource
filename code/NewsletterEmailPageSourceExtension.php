@@ -1,4 +1,5 @@
 <?php
+
 /**
  * @package silverstripe-newsletter-pagesource
  */
@@ -11,10 +12,10 @@ class NewsletterEmailPageSourceExtension extends Extension {
 			return;
 		}
 
-		$page     = $newsletter->SourcePage();
-		$response = Director::test($page->RelativeLink());
-		$body     = $this->emogrify($response->getBody());
-		$body     = HTTP::absoluteURLs($body);
+		$page		= $newsletter->SourcePage();
+		$response	= Director::test($page->RelativeLink());
+		$body		= $this->emogrify($response->getBody());
+		$body		= HTTP::absoluteURLs($body);
 
 		$email->setBody(DBField::create('HTMLText', $body));
 	}
@@ -28,16 +29,23 @@ class NewsletterEmailPageSourceExtension extends Extension {
 	 * @return string
 	 */
 	protected function emogrify($content) {
+		
 		require_once 'emogrifier/emogrifier.php';
 
-		$emog = new Emogrifier($content);
-		$css  = array();
+		// order here is seemingly important; 'tidy' seems to strip stuff important for detecting encoding??
+		$encoding	= mb_detect_encoding($content);
+		$content	= $this->tidy($content, $encoding);
+		$content	= mb_convert_encoding($content, 'HTML-ENTITIES', $encoding);
 
-		$encoding = mb_detect_encoding($content);
-		$content  = mb_convert_encoding($content, 'HTML-ENTITIES', $encoding);
+		$emog = new Emogrifier($content);
+		$css = array();
+
+		if (!$encoding) {
+			$encoding = 'UTF-8';
+		}
 
 		$document = new DOMDocument();
-		$document->encoding            = $encoding;
+		$document->encoding = $encoding;
 		$document->strictErrorChecking = false;
 		$document->loadHTML($content);
 		$document->normalizeDocument();
@@ -45,16 +53,18 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$xpath = new DOMXPath($document);
 
 		foreach ($xpath->query("//link[@rel='stylesheet']") as $link) {
-			$media    = $link->getAttribute('media');
-			$contents = trim(file_get_contents($link->getAttribute('href')));
-
-			if ($contents && (!$media || in_array($media, array('all', 'screen')))) {
-				$css[] = $contents;
+			$media = $link->getAttribute('media');
+			$file = $this->findCSSFile($link->getAttribute('href'));
+			if (file_exists($file)) {
+				$contents = trim(file_get_contents($file));
+				if ($contents && (!$media || in_array($media, array('all', 'screen')))) {
+					$css[] = $contents;
+				}
 			}
 		}
 
 		foreach ($xpath->query('//style') as $style) {
-			$type    = $style->getAttribute('type');
+			$type = $style->getAttribute('type');
 			$content = trim($style->textContent);
 
 			if ($content && (!$type || $type == 'text/css')) {
@@ -65,5 +75,65 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$emog->setCSS(implode("\n", $css));
 		return $emog->emogrify();
 	}
+	
+	/**
+	 * Try and find the css file for a given href
+	 *
+	 * @param type $href 
+	 */
+	private function findCSSFile($href) {
+		if (strpos($href, '//') !== false) {
+			$href = str_replace(Director::absoluteBaseURL(), '', $href);
+		}
+		if (strpos($href, '?')) {
+			$href = substr($href, 0, strpos($href, '?'));
+		}
+		
+		return Director::baseFolder() . '/' . $href;
+	}
 
+	/**
+	 * Cleans and returns XHTML which is needed for use in DOMDocument
+	 *
+	 * @param type $content
+	 * @param type $encoding
+	 * @return string
+	 */
+	protected function tidy($content, $encoding = 'UTF-8') {
+		// Try to use the extension first
+		if (extension_loaded('tidy')) {
+			$tidy = tidy_parse_string($content, array(
+				'clean' => true,
+				'output-xhtml' => true,
+				'show-body-only' => false,
+				'wrap' => 0,
+				'input-encoding' => $encoding,
+				'output-encoding' => $encoding,
+				'anchor-as-name'	=> false,
+			));
+
+			$tidy->cleanRepair();
+			return $this->rewriteShortcodes('' . $tidy);
+		}
+
+		// No PHP extension available, attempt to use CLI tidy.
+		$retval = null;
+		$output = null;
+		@exec('tidy --version', $output, $retval);
+		if ($retval === 0) {
+			$tidy = '';
+			$input = escapeshellarg($content);
+			// Doesn't work on Windows, sorry, stick to the extension.
+			$tidy = @`echo $input | tidy -q --show-body-only no --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
+			return $this->rewriteShortcodes($tidy);
+		}
+
+		// Fall back to default
+		$doc = new SS_HTMLValue($content);
+		return $doc->getContent();
+	}
+
+	protected function rewriteShortcodes($string) {
+		return preg_replace('/(\[[^]]*?)(%20)([^]]*?\])/m', '$1 $3', $string);
+	}
 }
