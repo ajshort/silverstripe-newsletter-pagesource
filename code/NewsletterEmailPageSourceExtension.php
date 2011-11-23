@@ -123,8 +123,11 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		if ($retval === 0) {
 			$tidy = '';
 			$input = escapeshellarg($content);
+			$encoding = str_replace('-', '', $encoding);
+                        $encoding = escapeshellarg($encoding);
+
 			// Doesn't work on Windows, sorry, stick to the extension.
-			$tidy = @`echo $input | tidy -q --show-body-only no --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
+			$tidy = @`echo $input | tidy -q --show-body-only no --tidy-mark no --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
 			return $this->rewriteShortcodes($tidy);
 		}
 
