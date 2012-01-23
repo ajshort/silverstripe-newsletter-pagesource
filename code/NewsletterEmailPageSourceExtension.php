@@ -15,7 +15,10 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$page		= $newsletter->SourcePage();
 		$response	= Director::test($page->RelativeLink());
 		$body		= $this->emogrify($response->getBody());
-		$body		= HTTP::absoluteURLs($body);
+		$body		= str_replace('xmlns="http://www.w3.org/1999/xhtml"', '', HTTP::absoluteURLs($body));
+		
+		// undo the fudging that happens to keywords
+		$body = preg_replace('/"[^"]*%7B%24(\w+)%7D/', '"{\$$1}', $body);
 
 		$email->setBody(DBField::create('HTMLText', $body));
 	}
@@ -47,6 +50,9 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$document = new DOMDocument();
 		$document->encoding = $encoding;
 		$document->strictErrorChecking = false;
+		
+		// some versions of tidy don't remove duplicate attrs
+		libxml_use_internal_errors(true);
 		$document->loadHTML($content);
 		$document->normalizeDocument();
 
@@ -73,7 +79,10 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		}
 
 		$emog->setCSS(implode("\n", $css));
-		return $emog->emogrify();
+		$content	= $emog->emogrify();
+		// clean up crap from emogrify
+		$content	= $this->tidy($content, $encoding);
+		return $content;
 	}
 	
 	/**
@@ -109,6 +118,7 @@ class NewsletterEmailPageSourceExtension extends Extension {
 				'wrap' => 0,
 				'input-encoding' => $encoding,
 				'output-encoding' => $encoding,
+				'doctype'		=> 'omit',
 				'anchor-as-name'	=> false,
 			));
 
@@ -123,8 +133,10 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		if ($retval === 0) {
 			$tidy = '';
 			$input = escapeshellarg($content);
+			$encoding = str_replace('-', '', $encoding);
+			$encoding = escapeshellarg($encoding);
 			// Doesn't work on Windows, sorry, stick to the extension.
-			$tidy = @`echo $input | tidy -q --show-body-only no --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
+			$tidy = @`echo $input | tidy -q --show-body-only no --tidy-mark no --doctype omit --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
 			return $this->rewriteShortcodes($tidy);
 		}
 
