@@ -16,6 +16,8 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$response	= Director::test($page->RelativeLink());
 		$body		= $this->emogrify($response->getBody());
 		$body		= str_replace('xmlns="http://www.w3.org/1999/xhtml"', '', HTTP::absoluteURLs($body));
+		$re			= '/\.src\s*=' . str_replace('/', '\/', Director::absoluteBaseURL()).'/';
+		$body		= preg_replace($re, '.src =', $body);
 		
 		// undo the fudging that happens to keywords
 		$body = preg_replace('/"[^"]*%7B%24(\w+)%7D/', '"{\$$1}', $body);
@@ -81,7 +83,7 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		$emog->setCSS(implode("\n", $css));
 		$content	= $emog->emogrify();
 		// clean up crap from emogrify
-		$content	= $this->tidy($content, $encoding);
+		$content	= str_replace('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">', '', $content);
 		return $content;
 	}
 	
