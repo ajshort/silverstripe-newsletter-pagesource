@@ -16,10 +16,8 @@ class NewsletterEmailPageSourceExtension extends Extension {
 
 		$page		= $newsletter->SourcePage();
 		$response	= Director::test($page->RelativeLink());
+		$body		= $response->getBody();
 		$body		= $this->emogrify($response->getBody());
-		$body		= str_replace('xmlns="http://www.w3.org/1999/xhtml"', '', HTTP::absoluteURLs($body));
-		$re			= '/\.src\s*=' . str_replace('/', '\/', Director::absoluteBaseURL()).'/';
-		$body		= preg_replace($re, '.src =', $body);
 		
 		// undo the fudging that happens to keywords
 		$body = preg_replace('/"[^"]*%7B%24(\w+)%7D/', '"{\$$1}', $body);
@@ -86,9 +84,7 @@ class NewsletterEmailPageSourceExtension extends Extension {
 		}
 
 		$emog->setCSS(implode("\n", $css));
-		$content	= $emog->emogrify();
-		// clean up crap from emogrify
-		$content	= str_replace('<!DOCTYPE html PUBLIC "-//W3C//DTD HTML 4.0 Transitional//EN" "http://www.w3.org/TR/REC-html40/loose.dtd">', '', $content);
+		$content = $emog->emogrify();
 		return $content;
 	}
 	
@@ -125,7 +121,6 @@ class NewsletterEmailPageSourceExtension extends Extension {
 				'wrap' => 0,
 				'input-encoding' => $encoding,
 				'output-encoding' => $encoding,
-				'doctype'		=> 'omit',
 				'anchor-as-name'	=> false,
 			));
 
@@ -143,7 +138,7 @@ class NewsletterEmailPageSourceExtension extends Extension {
 			$encoding = str_replace('-', '', $encoding);
 			$encoding = escapeshellarg($encoding);
 			// Doesn't work on Windows, sorry, stick to the extension.
-			$tidy = @`echo $input | tidy -q --show-body-only no --tidy-mark no --doctype omit --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
+			$tidy = @`echo $input | tidy -q --show-body-only no --tidy-mark no --input-encoding $encoding --output-encoding $encoding --wrap 0 --anchor-as-name no --clean yes --output-xhtml yes`;
 			return $this->rewriteShortcodes($tidy);
 		}
 
