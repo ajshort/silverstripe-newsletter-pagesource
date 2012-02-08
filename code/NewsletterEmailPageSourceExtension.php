@@ -14,6 +14,8 @@ class NewsletterEmailPageSourceExtension extends Extension {
 			return;
 		}
 
+		SSViewer::setOption('rewriteHashlinks', false);
+
 		$page		= $newsletter->SourcePage();
 		$response	= Director::test($page->RelativeLink());
 		$body		= $response->getBody();
