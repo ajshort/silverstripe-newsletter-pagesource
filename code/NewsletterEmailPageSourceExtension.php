@@ -5,6 +5,8 @@
  */
 class NewsletterEmailPageSourceExtension extends Extension {
 
+	public static $tidy = true;
+
 	public function updateNewsletterEmail(NewsletterEmail $email) {
 		$newsletter = $email->Newsletter();
 
@@ -34,13 +36,16 @@ class NewsletterEmailPageSourceExtension extends Extension {
 	 * @return string
 	 */
 	protected function emogrify($content) {
-		
 		require_once 'emogrifier/emogrifier.php';
 
-		// order here is seemingly important; 'tidy' seems to strip stuff important for detecting encoding??
-		$encoding	= mb_detect_encoding($content);
-		$content	= $this->tidy($content, $encoding);
-		$content	= mb_convert_encoding($content, 'HTML-ENTITIES', $encoding);
+		$encoding = mb_detect_encoding($content);
+
+		if(self::$tidy) {
+			// Order here is seemingly important; 'tidy' seems to strip stuff
+			// important for detecting encoding??
+			$content = $this->tidy($content, $encoding);
+			$content = mb_convert_encoding($content, 'HTML-ENTITIES', $encoding);
+		}
 
 		$emog = new Emogrifier($content);
 		$css = array();
